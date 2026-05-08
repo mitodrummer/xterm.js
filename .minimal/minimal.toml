@@ -1,0 +1,84 @@
+# Minimal configuration for the xterm.js fork.
+#
+# Everything related to Minimal lives under .minimal/ to keep the upstream
+# project layout untouched — easy to drop into any open-source repo without
+# scattering files at the root.
+#
+# Common entry points:
+#   minimal run dev      Full dev sandbox (Claude + shell, watchers running)
+#   minimal run shell    Lightweight Claude Code shell (no build stack)
+#   minimal run build    Compile TypeScript + run esbuild bundles
+#   minimal run test     Unit tests + lint (matches `npm test` lifecycle)
+#   minimal run e2e      Playwright integration tests (Chromium)
+#   minimal run package  Production webpack bundle (lib/)
+#   minimal run lint     ESLint over src/, addons/, demo/, test/, typings/
+#   minimal run clean    Remove build artifacts
+
+[upstream]
+repo = "https://github.com/gominimal/pkgs"
+branch = "main"
+locked_commit = "fbad6c8046d9b7344be7671682d5b3a5f7dd8e7d"
+
+[harness]
+use = "npm"
+
+[defaults]
+state_key = "dev"
+
+[tasks.shell]
+# Lightweight Claude Code entry point — no full dev stack. Use for one-off
+# editing or quick agent runs without provisioning the build toolchain.
+interactive = true
+packages = ["claude-code", "base", "node-lts", "vim"]
+patches.dir."~/.claude" = "read-write"
+patches.file."~/.gitconfig" = "read-only"
+patches.file."~/.vimrc" = "read-write"
+exec = "bash --noprofile -l"
+
+[tasks.dev]
+# Full dev sandbox: installs deps, runs the TypeScript + esbuild watchers,
+# starts the demo server on :3000, and opens a zellij layout with Claude
+# on the left and a shell on the right (welcome banner included).
+interactive = true
+packages = [
+  "claude-code", "base", "node-lts", "vim", "zellij", "fd",
+  "fzf", "ripgrep", "shellcheck", "git", "jq", "less", "gh",
+]
+patches.dir."~/.claude" = "read-write"
+patches.dir."~/.config" = "read-write"
+patches.file."~/.gitconfig" = "read-write"
+patches.file."~/.vimrc" = "read-write"
+bash = ".minimal/scripts/setup-dev.sh"
+
+[tasks.build]
+# Compile TypeScript (tsgo) + esbuild bundles for src/, addons/, headless.
+packages = ["node-lts"]
+bash = "npm ci && npm run build && npm run esbuild"
+
+[tasks.test]
+# `npm test` runs unit tests then lints (via posttest). Keep that contract.
+packages = ["node-lts"]
+bash = "npm ci && npm run build && npm test"
+
+[tasks.e2e]
+# Playwright integration tests. agent-browser bundles Chromium plus the
+# system libs Playwright needs; point Playwright at it via the standard
+# env var so we don't redownload browsers inside the sandbox.
+packages = ["node-lts", "agent-browser"]
+env_vars.PLAYWRIGHT_BROWSERS_PATH = "0"
+env_vars.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH = { inherit = true }
+bash = "npm ci && npm run build && npm run esbuild && npm run test-integration-chromium"
+
+[tasks.lint]
+# Source lint + public-API typings lint in one pass.
+packages = ["node-lts"]
+bash = "npm ci && npm run lint && npm run lint-api"
+
+[tasks.package]
+# Production webpack bundle → lib/ (what gets published to npm).
+packages = ["node-lts"]
+bash = "npm ci && npm run package"
+
+[tasks.clean]
+packages = ["node-lts"]
+bash = "npm run clean"
